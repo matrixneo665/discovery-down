@@ -1,0 +1,11 @@
+###### Requirements without Version Specifiers ######
+requests
+aiohttp
+flask
+sqlalchemy
+mako
+watchdog
+#aiopyarr
+jsonpickle
+lxml
+m3u8
