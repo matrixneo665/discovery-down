@@ -33,20 +33,35 @@ class DiscoveryDown:
         logging.info('scanner started; starting queue')
         await self.queue.start()
 
-    def updateShows(self):
-        self.parser.updateAllShowData()
+    def updateShows(self, showId = None, episodeId = None):
+        self.parser.updateShowData(showId, episodeId)
 
     async def forceDownloadEpisode(self, videoDataId, fileName, type):
         videoId = int(videoDataId)
-        with sessionMaker() as session:
-            data = DownloadData(fileName, videoId, type = type)
-            await self.downloader.downloadEpisode(data)
+        self._getEpisodeData(videoId)
 
-    def downloadEpisode(self, videoDataId, fileName, type):
+        data = DownloadData(fileName, videoId, type = type)
+        await self.downloader.downloadEpisode(data)
+
+    def downloadEpisode(self, videoDataId, fileName, type, force: bool = False):
         videoId = int(videoDataId)
         data = DownloadData(fileName, videoId, type)
 
+        self._getEpisodeData(videoId)
+
         self.queue.addDownload(data)
+            
+    def _getEpisodeData(self, videoDataId):
+        with sessionMaker() as db:
+            videoData = db.scalars(select(VideoData).where(VideoData.id == videoDataId)).first()
+
+            if (videoData):
+                ep = videoData.episode
+                show = ep.season.show
+
+                if (ep and show):
+                    self.parser.updateShowData(show.id, ep.id)
+
 
     def addShow(self, url: str, tvdbId: Optional[str]):
         show = self.parser.retrieveShowData(url, tvdbId)
@@ -96,6 +111,8 @@ async def main():
     api.api.apiDataRetriever = ApiDataRetriever(sessionMaker, api.api.getDownloadUrl, config.mpdDir)
     api.api.forceDownload = down.forceDownloadEpisode
     logging.info('Configured data; starting scanner, queue, and API')
+
+    #await down.forceDownloadEpisode('62', 'test', 'tv')
 
     try:
         downloaderTask = loop.create_task(down.start())

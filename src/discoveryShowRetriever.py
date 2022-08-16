@@ -26,17 +26,20 @@ class DiscoveryShowRetriever(Http):
         self.mpdDir = config.mpdDir
         self.infoRetriever = PlaybackInfoRetriever(config)
 
-    def updateAllShowData(self):
+    def updateShowData(self, showId = None, episodeId = None):
         shows = []
 
         with self._dbSessionMaker() as database:
             res = list(database.query(Show))
 
             for result in res:
+                if (showId):
+                    if (not result.id == showId):
+                        continue
                 shows.append({'slug': result.slug, 'tvdbId': result.tvdbId})
 
         for show in shows:
-            self._getShowMetadata(show.get('slug'), show.get('tvdbId'))
+            self._getShowMetadata(show.get('slug'), show.get('tvdbId'), episodeId)
     
     def retrieveShowData(self, url: str, tvdbId: Optional[str] = None):
         url_slug_regex = '^.*\/show\/(.*)$'
@@ -50,10 +53,10 @@ class DiscoveryShowRetriever(Http):
 
         return self._getShowMetadata(url_slug, tvdbId)
 
-    def _getShowMetadata(self, url_slug, tvdbId):
+    def _getShowMetadata(self, url_slug, tvdbId, episodeId = None):
 
         with self._dbSessionMaker() as database:
-            show_data = self._retrieveShowMetadata(url_slug, tvdbId, database)
+            show_data = self._retrieveShowMetadata(url_slug, tvdbId, database, episodeId)
 
             database.commit()
             database.flush()
@@ -61,14 +64,14 @@ class DiscoveryShowRetriever(Http):
             return show_data
 
 
-    def _retrieveShowMetadata(self, url_slug, tvdbId, database):
+    def _retrieveShowMetadata(self, url_slug, tvdbId, database, episodeId = None):
         result = self._session.get(f"https://us1-prod-direct.discoveryplus.com/cms/routes/show/{url_slug}?include=default")
 
         result_data = result.json()
         
-        return self._parseShowMetadata(result_data, url_slug, tvdbId, database)
+        return self._parseShowMetadata(result_data, url_slug, tvdbId, database, episodeId)
 
-    def _parseShowMetadata(self, result_data, url_slug, tvdbId, database):
+    def _parseShowMetadata(self, result_data, url_slug, tvdbId, database, episodeId = None):
 
         show = database.scalars(select(Show).where(Show.slug == url_slug)).first()
 
@@ -85,7 +88,27 @@ class DiscoveryShowRetriever(Http):
 
         season_count = 0
 
-        for include in included:
+        filtered = []
+
+        def valid(i):
+            
+            attr = i.get('attributes')
+            if (not attr):
+                return False
+
+            type = attr.get('type')
+
+            if (not type):
+                return True
+
+            return type != 'image'
+        
+        filtered.extend(filter(valid, included))
+
+
+        #videoType == 'STANDALONE'
+
+        for include in filtered:
             attributes = include.get('attributes') or None
 
             if (not attributes):
@@ -111,7 +134,7 @@ class DiscoveryShowRetriever(Http):
            
         show.id = show_id
 
-        self._retrieveEpisodeData(show, season_count, database)
+        self._retrieveEpisodeData(show, season_count, database, episodeId)
 
         return show
 
@@ -161,7 +184,7 @@ class DiscoveryShowRetriever(Http):
 
         return max_season
 
-    def _retrieveEpisodeData(self, show, season_count, database):
+    def _retrieveEpisodeData(self, show, season_count, database, episodeId = None):
         show_id = show.id
 
         for season in range(0, season_count + 1):
@@ -178,9 +201,9 @@ class DiscoveryShowRetriever(Http):
 
             data = response.json()
 
-            self._parseEpisodeData(data, discSeason, database)
+            self._parseEpisodeData(data, discSeason, database, episodeId)
 
-    def _parseEpisodeData(self, data, season, database):
+    def _parseEpisodeData(self, data, season, database, episodeId = None):
         included = data.get('included')
 
         if (not included):
@@ -199,6 +222,8 @@ class DiscoveryShowRetriever(Http):
 
             id = include.get('id')
 
+            if (episodeId and str(episodeId) != id):
+                continue
 
             airDate = attributes.get('airDate')
 
@@ -214,7 +239,7 @@ class DiscoveryShowRetriever(Http):
             if (not episode):
                 episode = Episode(id = id, num = episodeNum, title = attributes.get('name'), airDate = ad, publishDate = pd)
                 season.episodes.append(episode)
-
+            
             self._setEpisodeStreamData(episode)
 
             database.commit()
@@ -246,6 +271,9 @@ class DiscoveryShowRetriever(Http):
             matching = next(filter(lambda v: v.streamId == video.id, episode.videoData), None)
 
             if (matching):
+                matching.pssh = video.pssh
+                matching.key = video.key
+                matching.streamUrl = video.url
                 continue
 
             episode.videoData.append(
@@ -269,6 +297,9 @@ class DiscoveryShowRetriever(Http):
             matching = next(filter(lambda a: a.streamId == audio.id, episode.audioData), None)
 
             if (matching):
+                matching.pssh = audio.pssh
+                matching.key = audio.key
+                matching.streamUrl = audio.url
                 continue
 
             episode.audioData.append(

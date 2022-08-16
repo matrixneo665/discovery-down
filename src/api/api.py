@@ -51,15 +51,16 @@ def testDownload(videoDataId: int):
 
     forceDownload(videoDataId, f'Testing')
 
-
     return Response('Success', 200)
 
+@api.route('/show/update/<int:showId>/<int:episodeId>')
+@api.route('/show/update/<int:showId>')
 @api.route('/show/update', methods=['GET'], strict_slashes=False)
-def updateShowData():
+def updateShowData(showId:int = None, episodeId: int = None):
     if (not updateShows):
         return Response('Fail', 500)
 
-    updateShows()
+    updateShows(showId, episodeId)
     return Response('Success', 200)
 
 @api.route('/show', methods=["POST"], strict_slashes=False)
@@ -79,7 +80,10 @@ def addShow():
 def getAddShowPage():
     postUrl = urllib.parse.urljoin(request.host_url, url_for('addShow'))
 
-    result = apiDataRetriever.retrieveShowData(postUrl)
+    def getUpdateUrl(showId):
+        return urllib.parse.urljoin(request.host_url, url_for('updateShowData', **{'showId': showId}))
+
+    result = apiDataRetriever.retrieveShowData(postUrl, getUpdateUrl)
 
     return result
 

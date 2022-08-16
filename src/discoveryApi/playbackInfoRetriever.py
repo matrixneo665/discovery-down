@@ -95,13 +95,18 @@ class PlaybackInfoRetriever(Http):
         return widevine.get('licenseUrl')
 
     def _getShowMpdData(self, url: str, episodeId, drmToken, licenseUrl):
+        data = self._downloadData(url, episodeId, 'mpd')
+
+        return MpdParser(licenseUrl = licenseUrl, drmToken = drmToken, auth = self.auth).parseMpd(data)
+    
+    def _downloadData(self, url: str, episodeId: int, extension: str): 
         data = self._session.get(url).text
 
         Path(self.mpdDir).mkdir(parents=True, exist_ok=True)
 
-        fileName = os.path.join(self.mpdDir, f"{episodeId}.mpd")
+        fileName = os.path.join(self.mpdDir, f"{episodeId}.{extension}")
 
         with open(fileName, 'w') as f:
             f.write(data)
 
-        return MpdParser(licenseUrl = licenseUrl, drmToken = drmToken, auth = self.auth).parseMpd(data)
+        return data

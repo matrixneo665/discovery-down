@@ -22,6 +22,7 @@
             <th>Show</th>
             <th>Seasons</th>
             <th>Episodes</th>
+            <th>Update data</th>
         </tr>
     </thead>
     <tbody>
@@ -30,6 +31,7 @@
             <td>${show.title}</td>
             <td>${show.seasonCount}</td>
             <td>${show.episodeCount}</td>
+            <td><a href="${getUpdateUrl(show.id)}">Update</a>
         </tr>
         % endfor
     </tbody>

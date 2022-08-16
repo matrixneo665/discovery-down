@@ -15,6 +15,7 @@ from sqlalchemy.orm import contains_eager
 
 import pathlib
 import os
+import logging
 
 absPath = str(pathlib.Path(__file__).parent.absolute())
 
@@ -27,7 +28,8 @@ NZB_TEMPLATE = Template(filename = os.path.join(templatePath, 'nzb.template.mako
 ADD_SHOW_TEMPLATE = Template(filename = os.path.join(templatePath, 'addShow.template.mako'))
 
 class ShowResult:
-    def __init__(self, title: str, seasonCount: int, episodeCount: int):
+    def __init__(self, id: int, title: str, seasonCount: int, episodeCount: int):
+        self.id = id
         self.title = title
         self.seasonCount = seasonCount
         self.episodeCount = episodeCount
@@ -38,7 +40,7 @@ class ApiDataRetriever:
         self.urlRetriever = urlRetriever
         self.mpdDir = mpdDir
 
-    def retrieveShowData(self, postUrl: str):
+    def retrieveShowData(self, postUrl: str, getUpdateUrl):
         shows = []
         with self.dbSessionMaker() as session:
             data = list(session.query(Show))
@@ -54,9 +56,12 @@ class ApiDataRetriever:
                     for episode in season.episodes:
                         episodeCount = episodeCount + 1
                 
-                shows.append(ShowResult(title, seasonCount, episodeCount))
+                shows.append(ShowResult(id = show.id, 
+                            title = title, 
+                            seasonCount = seasonCount, 
+                            episodeCount = episodeCount))
 
-        result = ADD_SHOW_TEMPLATE.render(**{'postUrl': postUrl, 'showData': shows})
+        result = ADD_SHOW_TEMPLATE.render(**{'postUrl': postUrl, 'showData': shows, 'getUpdateUrl': getUpdateUrl})
         return result
 
     def retrieveMpd(self, episodeId: int):
@@ -64,6 +69,15 @@ class ApiDataRetriever:
             return ''
             
         fileName = os.path.join(self.mpdDir, f'{episodeId}.mpd')
+
+        if (not os.path.exists(fileName)):
+            logging.info(f'{episodeId} is not a mpd - trying m3u8')
+
+            fileName = os.path.join(self.mpdDir, f'{episodeId}.m3u8')
+
+            if (not os.path.exists(fileName)):
+                logging.info(f'{episodeId} is not m3u8 - cannot download episode')
+                return ''
 
         with open(fileName, 'r') as f:
             return f.read()
