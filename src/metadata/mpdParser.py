@@ -91,7 +91,7 @@ class MpdParser:
             for representation in representations:
                 height = representation.attrib.get('height')
                 width = representation.attrib.get('width')
-                bandwidthBitsps = float(respresentation.attrib.get('bandwidth'))
+                bandwidthBitsps = float(representation.attrib.get('bandwidth'))
 
                 segmentTemplate = representation.findall(f"./{self.contentProtectionNs}SegmentTemplate")
 
@@ -109,7 +109,7 @@ class MpdParser:
                 set = sets.get(width)
 
                 if (set):
-                    set.fileSize = set.fileSize + fileSizeBytes
+                    set.fileSizeBytes = set.fileSizeBytes + fileSizeBytes
                     set.numPeriods = set.numPeriods + 1
                     continue
 
