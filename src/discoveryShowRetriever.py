@@ -96,12 +96,12 @@ class DiscoveryShowRetriever(Http):
             if (not attr):
                 return False
 
-            type = attr.get('type')
+            currentType = attr.get('type')
 
-            if (not type):
+            if (not currentType):
                 return True
 
-            return type != 'image'
+            return currentType != 'image'
         
         filtered.extend(filter(valid, included))
 
@@ -114,9 +114,9 @@ class DiscoveryShowRetriever(Http):
             if (not attributes):
                 continue
 
-            type = include.get('type') or None
+            includedType = include.get('type') or None
 
-            if (type == "page"):
+            if (includedType == "page"):
                 show.title = attributes.get('title')
 
             if (not 'component' in attributes):
@@ -134,7 +134,7 @@ class DiscoveryShowRetriever(Http):
            
         show.id = show_id
 
-        self._retrieveEpisodeData(show, season_count, database, episodeId)
+        self._retrieveAllSeasonData(show, season_count, database, episodeId)
 
         return show
 
@@ -184,10 +184,22 @@ class DiscoveryShowRetriever(Http):
 
         return max_season
 
-    def _retrieveEpisodeData(self, show, season_count, database, episodeId = None):
+    def _retrieveAllSeasonData(self, show, season_count, database, episodeId = None):
         show_id = show.id
 
-        for season in range(0, season_count + 1):
+        allSeasons = show.seasons
+
+        numSeasons = len(allSeasons)
+
+        start = 0
+
+        if (numSeasons > 0):
+            if (numSeasons < season_count):
+                start = season_count
+            else:
+                start = numSeasons
+
+        for season in range(start, season_count + 1):
 
             discSeason = next(filter(lambda s: s.num == season, show.seasons), None)
 
@@ -201,7 +213,7 @@ class DiscoveryShowRetriever(Http):
 
             data = response.json()
 
-            self._parseEpisodeData(data, discSeason, database, episodeId)
+            self._parseEpisodeData(data, discSeason, database, episodeId)        
 
     def _parseEpisodeData(self, data, season, database, episodeId = None):
         included = data.get('included')

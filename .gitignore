@@ -142,3 +142,5 @@ dmypy.json
 
 **/Dockerfile
 **/*.fuse_*
+
+build.sh
